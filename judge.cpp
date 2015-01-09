@@ -20,31 +20,26 @@ using namespace std;
 #define RS_RE 3
 #define RS_MLE 4
 #define RS_WA 5
-char din[STRLEN],dout[STRLEN];
-int dil,dir;
-char sname[STRLEN],exname[STRLEN];
-char pin[STRLEN],pout[STRLEN],pname[STRLEN];
-int tlim[TOTCASE],mlim[TOTCASE];
 inline void PrintLog(const char *x,int y,int z)
 {
 		FILE *Log=fopen("log.txt","a");
 		fprintf(Log,x,y,z);
 		fclose(Log);
-//		printf(x,y,z);
+		//				printf(x,y,z);
 }
 inline void PrintLog(const char *x,int y)
 {
 		FILE *Log=fopen("log.txt","a");
 		fprintf(Log,x,y);
 		fclose(Log);
-//		printf(x,y);
+		//				printf(x,y);
 }
 inline void PrintLog(const char *x)
 {
 		FILE *Log=fopen("log.txt","a");
 		fprintf(Log,"%s",x);
 		fclose(Log);
-//		printf("%s",x);
+		//				printf("%s",x);
 }
 
 
@@ -72,28 +67,127 @@ void Print(const char *cc)
 		}else
 				printf("%s\n",cc);
 }
-struct TestCase
+class Task;
+class TestCase
 {
-		int id;
-		int TimeLimit,MemoryLimit;
-		int Score;
-		int Time,Memory;
-		int Status;
-		void Print()
-		{
-				switch (Status)
+		public:
+				Task* task;
+				int id;
+				int TimeLimit,MemoryLimit;
+				int Score;
+				int Time,Memory;
+				int Status;
+				void Print_Status()
 				{
-						case RS_AC : ::Print("Accept               ");break;
-						case RS_TLE: ::Print("Time Limit Exceed    ");break;
-						case RS_WA : ::Print("Wrong Answer         ");break;
-						case RS_MLE: ::Print("Memory Limit Exceed  ");break;
-						case RS_RE : ::Print("Runtime Error        ");break;
-						default:     ::Print("Unknown Result       ");break;
+						switch (Status)
+						{
+								case RS_AC : ::Print("Accept               ");break;
+								case RS_TLE: ::Print("Time Limit Exceed    ");break;
+								case RS_WA : ::Print("Wrong Answer         ");break;
+								case RS_MLE: ::Print("Memory Limit Exceed  ");break;
+								case RS_RE : ::Print("Runtime Error        ");break;
+								default:     ::Print("Unknown Result       ");break;
+						}
+						printf("\033[0m% 6ds   % 6dkb\n",Time,Memory);
 				}
-				printf("\033[0m% 6ds   % 6dkb\n",Time,Memory);
-		}
-}testc[TOTCASE];
-int Run(TestCase& tc)
+				void SetTimeLimit(int TimeLimit)
+				{
+						this->TimeLimit=TimeLimit;
+				}
+				void SetMemoryLimit(int MemoryLimit)
+				{
+						this->MemoryLimit=MemoryLimit;
+				}
+				int Run();
+
+};
+class Task
+{
+		private:
+				char din[STRLEN],dout[STRLEN];
+				int lrange,rrange;
+				char sname[STRLEN];//Source File Name
+				char exname[STRLEN];
+				char pin[STRLEN],pout[STRLEN];//Input
+				int tlim[TOTCASE],mlim[TOTCASE];
+				TestCase *testc[TOTCASE];
+				int totcase;
+		public:
+				friend int TestCase::Run();
+				~Task()
+				{
+						for (int i=0;i<totcase;i++)
+								delete testc[i];
+				}
+				bool Compile()
+				{
+						char cc[STRLEN];
+						sprintf(cc,"g++ %s -o ./tmp/%s >Compile.log",sname,exname);
+						if (system(cc))return true;
+						return false;
+				}
+				int Judge()
+				{
+						char in[STRLEN],out[STRLEN],cc[STRLEN];
+						for (int i=lrange;i<=rrange;i++)
+						{
+								//printf("\033[46mCase %d:",i);printf("\033[0m\n");
+								PrintLog("Case %d:\n",i);
+								sprintf(in,din,i);
+								sprintf(out,dout,i);
+								sprintf(cc,"cp %s ./tmp/%s",in,pin);
+								system(cc);
+								testc[i]->Run();
+								if (!testc[i]->Status)
+								{
+										sprintf(cc,"diff %s ./tmp/%s -w >res%d_diff.log",out,pout,i);
+										if (system(cc))
+										{
+												//Print("Wrong Answer\n");
+												testc[i]->Status=RS_WA;
+										}else
+										{
+												//Print("Accept\n");
+												testc[i]->Status=RS_AC;
+										}
+								}
+								testc[i]->Print_Status();
+						}
+						return 0;
+				}
+				void Init(const char *cfg_name="log.txt")
+				{
+						FILE *Log=fopen(cfg_name,"w");
+						fclose(Log);
+						fprintf(Log,"Judging Time:--\n");
+						freopen("/dev/null","w",stderr);
+						FILE *gs=fopen("judge.cfg","r");
+						fscanf(gs,"%s\n",exname);//Project Name
+						fscanf(gs,"%s\n",din);//Data Input
+						fscanf(gs,"%s\n",dout);//Data Output
+						fscanf(gs,"%d %d\n",&lrange,&rrange);//Index Range
+						fscanf(gs,"%s\n",sname);//Source File Name
+						fscanf(gs,"%s\n",pin);//Input File Name
+						fscanf(gs,"%s\n",pout);//Output File Name
+						int TimeLimit,MemoryLimit;
+						fscanf(gs,"%d%d",&TimeLimit,&MemoryLimit);
+						totcase=rrange-lrange+1;
+						for (int i=lrange;i<=rrange;i++)
+						{
+								testc[i-lrange]=new TestCase;
+								testc[i-lrange]->SetTimeLimit(TimeLimit);
+								testc[i-lrange]->SetMemoryLimit(MemoryLimit);
+								testc[i-lrange]->task=this;
+								testc[i-lrange]->id=i;
+						}
+				}
+
+}T;
+void call()
+{
+}
+
+int TestCase::Run()
 {
 		char cc[STRLEN];
 		char path_old[440],path_new[440];
@@ -103,17 +197,19 @@ int Run(TestCase& tc)
 		{
 				rlimit rm_cpu_old,rm_cpu_new;
 				getrlimit(RLIMIT_CPU,&rm_cpu_old);
-				rm_cpu_new.rlim_cur=tc.TimeLimit+1;
-				rm_cpu_new.rlim_max=tc.TimeLimit+1;
+				rm_cpu_new.rlim_cur=TimeLimit+1;
+				rm_cpu_new.rlim_max=TimeLimit+1;
 				setrlimit(RLIMIT_CPU,&rm_cpu_new);
 
 				rlimit rm_as_old,rm_as_new;
 				getrlimit(RLIMIT_AS,&rm_as_old);
-				rm_as_new.rlim_cur=(tc.MemoryLimit+1)*1024*1024;
-				rm_as_old.rlim_max=(tc.MemoryLimit+1)*1024*1024;
+				rm_as_new.rlim_cur=(MemoryLimit+1)*1024*1024;
+				rm_as_old.rlim_max=(MemoryLimit+1)*1024*1024;
+				PrintLog("Set Memory Limit %d\n",rm_as_new.rlim_cur);
 				setrlimit(RLIMIT_AS,&rm_as_new);
 
-				sprintf(cc,"./%s </dev/null >/dev/null",exname);
+				sprintf(cc,"./%s </dev/null >/dev/null \n",task->exname);
+				PrintLog(cc);
 				getcwd(path_old,440);
 				strcpy(path_new,path_old);
 				strcat(path_new,"/tmp");
@@ -143,8 +239,8 @@ int Run(TestCase& tc)
 				int cur_Mem=(int)rusa.ru_maxrss;
 				PrintLog("Run Time:%dsec\n",cur_Time);
 				PrintLog("Run Mem:%dkb\n",cur_Mem);
-				tc.Time=cur_Time;
-				tc.Memory=cur_Mem;
+				Time=cur_Time;
+				Memory=cur_Mem;
 				if (status==-1)
 				{
 						Print("System Error\n");
@@ -155,18 +251,18 @@ int Run(TestCase& tc)
 				{
 						if (!WEXITSTATUS(status))
 						{
-								if (tc.Time>=tc.TimeLimit*1000)
-										tc.Status=RS_TLE;
+								if (Time>=TimeLimit*1000)
+										Status=RS_TLE;
 						}else
 						{
 								if (cur_Time)
 								{
-										tc.Status=RS_TLE;
+										Status=RS_TLE;
 								}
 								else
 								{
-										tc.Status=RS_MLE;
-										tc.Memory=0;
+										Status=RS_MLE;
+										Memory=0;
 								}
 						}
 				}else
@@ -177,64 +273,13 @@ int Run(TestCase& tc)
 		}
 		return 0;
 }
-bool Compile()
-{
-		char cc[STRLEN];
-		sprintf(cc,"g++ %s -o ./tmp/%s >Compile.log",sname,exname);
-		if (system(cc))return true;
-		return false;
-}
-int Judge()
-{
-		char in[STRLEN],out[STRLEN],cc[STRLEN];
-		for (int i=dil;i<=dir;i++)
-		{
-				//printf("\033[46mCase %d:",i);printf("\033[0m\n");
-				PrintLog("Case %d:\n",i);
-				sprintf(in,din,i);
-				sprintf(out,dout,i);
-				sprintf(cc,"cp %s ./tmp/%s",in,pin);
-				system(cc);
-				Run(testc[i]);
-				if (!testc[i].Status)
-				{
-						sprintf(cc,"diff %s ./tmp/%s -w >res%d_diff.log",out,pout,i);
-						if (system(cc))
-						{
-								//Print("Wrong Answer\n");
-								testc[i].Status=RS_WA;
-						}else
-						{
-								//Print("Accept\n");
-								testc[i].Status=RS_AC;
-						}
-				}
-				testc[i].Print();
-		}
-		return 0;
-}
 int main(int argc,const char* args[])
 {
-		FILE *Log=fopen("log.txt","w");
-		fclose(Log);
-		fprintf(Log,"Judging Time:--\n");
-		freopen("/dev/null","w",stderr);
-		FILE *gs=fopen("judge.cfg","r");
-		fscanf(gs,"%s\n",exname);//Project Name
-		fscanf(gs,"%s\n",din);//Data Input
-		fscanf(gs,"%s\n",dout);//Data Output
-		fscanf(gs,"%d %d\n",&dil,&dir);//Index Range
-		fscanf(gs,"%s\n",sname);//Source File Name
-		fscanf(gs,"%s\n",pin);//Input File Name
-		fscanf(gs,"%s\n",pout);//Output File Name
-		fscanf(gs,"%d%d",&testc[dil].TimeLimit,&testc[dil].MemoryLimit);
-		for (int i=dil+1;i<=dir;i++)
-				testc[i].TimeLimit=testc[i-1].TimeLimit,
-						testc[i].MemoryLimit=testc[i-1].MemoryLimit;
-		if (Compile())
+		T.Init();
+		if (T.Compile())
 		{
 				Print("Compile Error!\n");
 				return 0;
 		}
-		Judge();
+		T.Judge();
 }
