@@ -10,6 +10,9 @@
 #include<sys/signal.h>
 #include<signal.h>
 #include<unistd.h>
+#include<map>
+#include<string>
+#include<fstream>
 using namespace std;
 #define STRLEN 150
 #define TOTCASE 55
@@ -20,29 +23,90 @@ using namespace std;
 #define RS_RE 3
 #define RS_MLE 4
 #define RS_WA 5
-#define ROOT_PATH "/home/toby/Program"
+#define ROOT_PATH "/home/toby/Program/"
+#define HOME_PATH "/home/toby/Program/self-judge/"
+#define RECORD_PATH HOME_PATH"variable.rec"
 //PrintLog{{{
+//#define STDLOG
 inline void PrintLog(const char *x,int y,int z)
 {
-		FILE *Log=fopen("log.txt","a");
+		FILE *Log=fopen(HOME_PATH"log.txt","a");
 		fprintf(Log,x,y,z);
 		fclose(Log);
-		//				printf(x,y,z);
+#ifdef STDLOG
+		printf(x,y,z);
+#endif
 }
 inline void PrintLog(const char *x,int y)
 {
-		FILE *Log=fopen("log.txt","a");
+		FILE *Log=fopen(HOME_PATH"log.txt","a");
 		fprintf(Log,x,y);
 		fclose(Log);
+#ifdef STDLOG
+		printf(x,y);
+#endif
 		//				printf(x,y);
+}
+inline void PrintLog(const char *x,const char *y)
+{
+		FILE *Log=fopen(HOME_PATH"log.txt","a");
+		fprintf(Log,x,y);
+		fclose(Log);
+#ifdef STDLOG
+		printf(x,y);
+#endif
+		//printf(x,y);
 }
 inline void PrintLog(const char *x)
 {
-		FILE *Log=fopen("log.txt","a");
+		FILE *Log=fopen(HOME_PATH"log.txt","a");
 		fprintf(Log,"%s",x);
 		fclose(Log);
+#ifdef STDLOG
+		printf(x);
+#endif
 		//				printf("%s",x);
 }
+class EV_t
+{
+		map<string,string> List;
+		public:
+		void Init_EV()
+		{
+				ifstream fin(RECORD_PATH);
+				string s1,s2;
+				getline(fin,s1);
+				if (s1!="#Environment Variable")
+				{
+						return;
+				}
+				while (fin>>s1>>s2)
+				{
+						List[s1]=s2;
+				}
+				fin.close();
+		}
+		void Add_var(string s1,string s2)
+		{
+				List[s1]=s2;
+		}
+		string Find_var(string s1)
+		{
+				if (List.find(s1)==List.end())return string("");
+				else
+						return List[s1];
+		}
+		void Print_EV()
+		{
+				ofstream fout(RECORD_PATH);
+				fout<<"#Environment Variable"<<endl;
+				map<string,string> :: iterator it1;
+				for (it1=List.begin();it1!=List.end();it1++)
+				{
+						fout<<it1->first<<" "<<it1->second<<endl;
+				}
+		}
+}Var;
 
 void Print(const char *cc)
 {
@@ -126,7 +190,8 @@ bool Task::Compile()const
 {
 		char cc[STRLEN];
 		system("mkdir ./tmp");
-		sprintf(cc,"g++ %s -o ./tmp/%s >Compile.log",SourceName,ExecuteName);
+		sprintf(cc,"g++ %s -o "HOME_PATH"tmp/%s >Compile.log\n",SourceName,ExecuteName);
+		PrintLog(cc);
 		if (system(cc))return true;
 		return false;
 }
@@ -141,12 +206,12 @@ int Task::Judge()
 				PrintLog("Case %d:\n",i);
 				sprintf(in,DataIn,i);
 				sprintf(out,DataOut,i);
-				sprintf(cc,"cp %s ./tmp/%s",in,FileIn);
+				sprintf(cc,"cp %s "HOME_PATH"tmp/%s",in,FileIn);
 				system(cc);
 				testc[i]->Run();
 				if (!testc[i]->GetStatus())
 				{
-						sprintf(cc,"diff %s ./tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
+						sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
 						if (system(cc))
 						{
 								//Print("Wrong Answer\n");
@@ -170,6 +235,12 @@ void Task::Init(const char *cfg_name="log.txt")
 		fprintf(Log,"Judging Time:--\n");
 		freopen("/dev/null","w",stderr);
 		FILE *gs=fopen(cfg_name,"r");
+		if (!gs)
+		{
+				printf("Cannot Find File: %s\n",cfg_name);
+				PrintLog("Cannot Find File: %s\n",cfg_name);
+				return ;
+		}
 		fscanf(gs,"%s\n",ExecuteName);//Project Name
 		fscanf(gs,"%s\n",DataIn);//Data Input
 		fscanf(gs,"%s\n",DataOut);//Data Output
@@ -244,14 +315,19 @@ int TestCase::Run()
 				PrintLog("Set Memory Limit %d\n",(int)rm_as_new.rlim_cur);
 				setrlimit(RLIMIT_AS,&rm_as_new);
 
-				sprintf(cc,"./%s </dev/null >/dev/null \n",task->GetExecuteName());
-				PrintLog(cc);
+				sprintf(cc,"./%s </dev/null >/dev/null",task->GetExecuteName());
 				getcwd(path_old,440);
-				strcpy(path_new,path_old);
-				strcat(path_new,"/tmp");
+				//strcpy(path_new,path_old);
+				//strcat(path_new,"/tmp");
+				strcpy(path_new,HOME_PATH"tmp");
+
 				chdir(path_new);
+				PrintLog("Change directory into %s\n",path_new);
+
 				int status=system(cc);
+				PrintLog("%s\n",cc);
 				chdir(path_old);
+				PrintLog("Change directory into %s\n",path_old);
 				PrintLog("Return Status:%d\n",status);
 				PrintLog("WIFEXITED:\t%d\n",WIFEXITED(status));
 				PrintLog("WIFSIGNALED:\t%d\n",WIFSIGNALED(status));
@@ -315,6 +391,8 @@ int main(int argc,const char* args[])
 {
 		char cfg_path[STRLEN];
 		char str[STRLEN];
+		fclose(fopen(HOME_PATH"log.txt","w"));
+		Var.Init_EV();
 		printf("\033[0m\n");
 		strcpy(cfg_path,ROOT_PATH);
 		chdir(cfg_path);
@@ -326,7 +404,21 @@ int main(int argc,const char* args[])
 				printf("\033[33mConfigure Files:\033[0m\n");
 				while (fgets(str,STRLEN,stdin))
 				{
-						if (strstr(str,"ls")==str)
+						if (strstr(str,"old")==str)
+						{
+								string str=Var.Find_var("cfg_path");
+								if (str.size())
+								{
+										strcpy(cfg_path,str.c_str());
+										PrintLog("Set cfg_path = %s\n",cfg_path);
+										break;
+								}else
+								{
+										printf("Cannot Find Record \"cfg_path\"");
+										PrintLog("Cannot Find Record \"cfg_path\"");
+										continue;
+								}
+						}else if (strstr(str,"ls")==str)
 						{
 								system("ls --color=always");
 						}else if (strstr(str,"cd ..")==str)
@@ -340,7 +432,6 @@ int main(int argc,const char* args[])
 												break;
 										}
 								chdir(cfg_path);
-								//printf(str);
 						}else if (strstr(str,"cd ")==str)
 						{
 								system(str);
@@ -362,6 +453,7 @@ int main(int argc,const char* args[])
 						printf("%s\n",cfg_path);
 				}
 		}
+		Var.Add_var("cfg_path",cfg_path);
 		T.Init(cfg_path);
 		if (T.Compile())
 		{
@@ -369,4 +461,5 @@ int main(int argc,const char* args[])
 				return 0;
 		}
 		T.Judge();
+		Var.Print_EV();
 }
