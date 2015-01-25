@@ -24,8 +24,20 @@ using namespace std;
 #define RS_MLE 4
 #define RS_WA 5
 #define ROOT_PATH "/home/toby/Program/"
-#define HOME_PATH "/home/toby/Program/self-judge/"
+#define HOME_PATH ROOT_PATH"self-judge/"
 #define RECORD_PATH HOME_PATH"variable.rec"
+bool file_exist(const char *file_name) 
+{
+		char cc[STRLEN];
+		sprintf(cc,"if [ -f \"%s\" ] ;\nthen exit 1 \n else exit 0\nfi",file_name);
+		return system(cc);
+}
+bool directory_exist(const char *file_name) 
+{
+		char cc[STRLEN];
+		sprintf(cc,"if [ -d \"%s\" ] ;\nthen exit 1 \n else exit 0\nfi",file_name);
+		return system(cc);
+}
 //PrintLog{{{
 //#define STDLOG
 inline void PrintLog(const char *x,int y,int z)
@@ -45,7 +57,6 @@ inline void PrintLog(const char *x,int y)
 #ifdef STDLOG
 		printf(x,y);
 #endif
-		//				printf(x,y);
 }
 inline void PrintLog(const char *x,const char *y)
 {
@@ -55,7 +66,6 @@ inline void PrintLog(const char *x,const char *y)
 #ifdef STDLOG
 		printf(x,y);
 #endif
-		//printf(x,y);
 }
 inline void PrintLog(const char *x)
 {
@@ -65,7 +75,6 @@ inline void PrintLog(const char *x)
 #ifdef STDLOG
 		printf(x);
 #endif
-		//				printf("%s",x);
 }
 class EV_t
 {
@@ -93,8 +102,7 @@ class EV_t
 		string Find_var(string s1)
 		{
 				if (List.find(s1)==List.end())return string("");
-				else
-						return List[s1];
+				else return List[s1];
 		}
 		void Print_EV()
 		{
@@ -174,13 +182,13 @@ class Task
 				const char *GetExecuteName()const;
 				bool Compile()const;
 				int Judge();
-				void Init(const char *cfg_name);
+				bool Init(FILE *gs);
 
 };
 
 Task::~Task()
 {
-		for (int i=0;i<TotalCase;i++)delete testc[i];
+		for (int i=LeftRange;i<=RightRange;i++)delete testc[i];
 }
 const char *Task::GetExecuteName()const
 {
@@ -192,7 +200,11 @@ bool Task::Compile()const
 		system("mkdir ./tmp");
 		sprintf(cc,"g++ %s -o "HOME_PATH"tmp/%s >Compile.log\n",SourceName,ExecuteName);
 		PrintLog(cc);
-		if (system(cc))return true;
+		if (system(cc))
+		{
+				printf("%s\n",cc);
+				return true;
+		}
 		return false;
 }
 int Task::Judge()
@@ -201,6 +213,7 @@ int Task::Judge()
 		sprintf(cc,"mkdir %s_difflog",ExecuteName);
 		sprintf(LogDir,"%s_difflog",ExecuteName);
 		system(cc);
+		printf("\033[34mTask:%s\033[0m\n",ExecuteName);
 		for (int i=LeftRange;i<=RightRange;i++)
 		{
 				PrintLog("Case %d:\n",i);
@@ -211,7 +224,10 @@ int Task::Judge()
 				testc[i]->Run();
 				if (!testc[i]->GetStatus())
 				{
-						sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
+					//	sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
+					//	sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"/tmp/%s",out,FileOut,LogDir,i);
+					//	system(cc);
+						sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"tmp/%s  >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
 						if (system(cc))
 						{
 								//Print("Wrong Answer\n");
@@ -228,20 +244,10 @@ int Task::Judge()
 		}
 		return 0;
 }
-void Task::Init(const char *cfg_name="log.txt")
+bool Task::Init(FILE *gs)
 {
-		FILE *Log=fopen("log.txt","w");
-		fclose(Log);
-		fprintf(Log,"Judging Time:--\n");
 		freopen("/dev/null","w",stderr);
-		FILE *gs=fopen(cfg_name,"r");
-		if (!gs)
-		{
-				printf("Cannot Find File: %s\n",cfg_name);
-				PrintLog("Cannot Find File: %s\n",cfg_name);
-				return ;
-		}
-		fscanf(gs,"%s\n",ExecuteName);//Project Name
+		if (fscanf(gs,"%s\n",ExecuteName)==EOF)return false;;//Project Name
 		fscanf(gs,"%s\n",DataIn);//Data Input
 		fscanf(gs,"%s\n",DataOut);//Data Output
 		fscanf(gs,"%d %d\n",&LeftRange,&RightRange);//Index Range
@@ -253,8 +259,9 @@ void Task::Init(const char *cfg_name="log.txt")
 		TotalCase=RightRange-LeftRange+1;
 		for (int i=LeftRange;i<=RightRange;i++)
 		{
-				testc[i-LeftRange]=new TestCase(this,TimeLimit,MemoryLimit,i);
+				testc[i]=new TestCase(this,TimeLimit,MemoryLimit,i);
 		}
+		return true;
 }
 
 TestCase::TestCase(const Task* task,int TimeLimit,int MemoryLimit,int Id):
@@ -389,13 +396,16 @@ int TestCase::Run()
 Task T;
 int main(int argc,const char* args[])
 {
-		char cfg_path[STRLEN];
+		FILE *Log=fopen("log.txt","w");
+		fclose(Log);
+		char cfg_path[STRLEN],main_path[STRLEN];
 		char str[STRLEN];
 		fclose(fopen(HOME_PATH"log.txt","w"));
 		Var.Init_EV();
 		printf("\033[0m\n");
 		strcpy(cfg_path,ROOT_PATH);
 		chdir(cfg_path);
+		int t;
 		if (args[1])
 		{
 				strcpy(cfg_path,args[1]);
@@ -435,9 +445,14 @@ int main(int argc,const char* args[])
 						}else if (strstr(str,"cd ")==str)
 						{
 								system(str);
-								str[strlen(str)-1]='\0';
-								strcat(cfg_path,"/");
+								str[t=(int)strlen(str)-1]='\0';
 								strcat(cfg_path,str+3);
+								strcat(cfg_path,"/");
+								if (!directory_exist(cfg_path))
+								{
+										printf("Cannot find directory:%s\n",cfg_path);
+										cfg_path[t]='\0';
+								}
 								chdir(cfg_path);
 						}else if (strstr(str,"vim ")==str)
 						{
@@ -454,12 +469,31 @@ int main(int argc,const char* args[])
 				}
 		}
 		Var.Add_var("cfg_path",cfg_path);
-		T.Init(cfg_path);
-		if (T.Compile())
+		FILE *cfg_file=fopen(cfg_path,"r");
+		if (!cfg_file)
 		{
-				Print("Compile Error!\n");
+				printf("Cannot Find File: %s\n",cfg_path);
+				PrintLog("Cannot Find File: %s\n",cfg_path);
 				return 0;
 		}
-		T.Judge();
+		strcpy(main_path,cfg_path);
+		for (int i=strlen(main_path)-1;i>=0;i--)
+		{
+				if (main_path[i]=='/')
+				{
+						main_path[i]='\0';
+						break;
+				}
+		}
+		chdir(main_path);
+		while (T.Init(cfg_file))
+		{
+				if (T.Compile())
+				{
+						Print("Compile Error!\n");
+						return 0;
+				}
+				T.Judge();
+		}
 		Var.Print_EV();
 }
