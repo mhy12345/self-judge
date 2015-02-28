@@ -26,6 +26,7 @@ using namespace std;
 #define ROOT_PATH "/home/toby/Program/"
 #define HOME_PATH ROOT_PATH"self-judge/"
 #define RECORD_PATH HOME_PATH"variable.rec"
+char current_path[STRLEN];
 bool file_exist(const char *file_name) 
 {
 		char cc[STRLEN];
@@ -183,7 +184,6 @@ class Task
 				bool Compile()const;
 				int Judge();
 				bool Init(FILE *gs);
-
 };
 
 Task::~Task()
@@ -209,6 +209,11 @@ bool Task::Compile()const
 }
 int Task::Judge()
 {
+		if (Compile())
+		{
+				Print("Compile Error!\n");
+				return -1;
+		}
 		char in[STRLEN],out[STRLEN],cc[STRLEN],LogDir[STRLEN];
 		sprintf(cc,"mkdir %s_difflog",ExecuteName);
 		sprintf(LogDir,"%s_difflog",ExecuteName);
@@ -224,12 +229,14 @@ int Task::Judge()
 				testc[i]->Run();
 				if (!testc[i]->GetStatus())
 				{
-					//	sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
-					//	sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"/tmp/%s",out,FileOut,LogDir,i);
-					//	system(cc);
+						//	sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
+						//	sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"/tmp/%s",out,FileOut,LogDir,i);
+						//	system(cc);
 						sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"tmp/%s  >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
-						if (system(cc))
+						int diffres;
+						if (diffres=system(cc))
 						{
+								PrintLog("fdiff_return:%d\n",diffres);
 								//Print("Wrong Answer\n");
 								testc[i]->SetStatus(RS_WA);
 						}else
@@ -270,6 +277,7 @@ TestCase::TestCase(const Task* task,int TimeLimit,int MemoryLimit,int Id):
 };
 void TestCase::Print_Status()
 {
+		printf("\033[35m% 4d\033[0m   ",Id);
 		switch (Status)
 		{
 				case RS_AC : ::Print("Accept               ");break;
@@ -279,7 +287,7 @@ void TestCase::Print_Status()
 				case RS_RE : ::Print("Runtime Error        ");break;
 				default:     ::Print("Unknown Result       ");break;
 		}
-		printf("\033[0m% 6ds   % 6dkb\n",Time,Memory);
+		printf("\033[0m% 6dms   % 6dkb\n",Time,Memory);
 }
 void TestCase::SetTimeLimit(int TimeLimit)
 {
@@ -374,13 +382,16 @@ int TestCase::Run()
 										Status=RS_TLE;
 						}else
 						{
-								if (cur_Time)
+								if (Time>TimeLimit*1000)
 								{
 										Status=RS_TLE;
 								}
 								else
 								{
-										Status=RS_MLE;
+										if (Time<5)
+												Status=RS_MLE;
+										else
+												Status=RS_RE;
 										Memory=0;
 								}
 						}
@@ -393,12 +404,12 @@ int TestCase::Run()
 		return 0;
 }
 
-Task T;
+Task T[11];
 int main(int argc,const char* args[])
 {
 		FILE *Log=fopen("log.txt","w");
 		fclose(Log);
-		char cfg_path[STRLEN],main_path[STRLEN];
+		char cfg_path[STRLEN];
 		char str[STRLEN];
 		fclose(fopen(HOME_PATH"log.txt","w"));
 		Var.Init_EV();
@@ -476,24 +487,37 @@ int main(int argc,const char* args[])
 				PrintLog("Cannot Find File: %s\n",cfg_path);
 				return 0;
 		}
-		strcpy(main_path,cfg_path);
-		for (int i=strlen(main_path)-1;i>=0;i--)
+		strcpy(current_path,cfg_path);
+		for (int i=strlen(current_path)-1;i>=0;i--)
 		{
-				if (main_path[i]=='/')
+				if (current_path[i]=='/')
 				{
-						main_path[i]='\0';
+						current_path[i]='\0';
 						break;
 				}
 		}
-		chdir(main_path);
-		while (T.Init(cfg_file))
+		chdir(current_path);
+		int topt=0;
+		while (T[topt++].Init(cfg_file));
+		char cc[30];
+		if (topt>1)
+				fgets(cc,30,stdin);
+		if (!strcmp(cc,"\n"))
 		{
-				if (T.Compile())
+				for (int i=0;i<topt;i++)
 				{
-						Print("Compile Error!\n");
-						return 0;
+						T[i].Judge();
 				}
-				T.Judge();
+		}else 
+		{
+				cc[strlen(cc)-1]='\0';
+				for (int i=0;i<topt;i++)
+				{
+						if (!strcmp(T[i].GetExecuteName(),cc))
+						{
+								T[i].Judge();
+						}
+				}
 		}
 		Var.Print_EV();
 }
