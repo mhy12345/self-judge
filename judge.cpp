@@ -14,7 +14,7 @@
 #include<string>
 #include<fstream>
 using namespace std;
-#define STRLEN 150
+#define STRLEN 350
 #define TOTCASE 55
 #define RS_SYE 10
 #define RS_NOR 0
@@ -224,7 +224,8 @@ int Task::Judge()
 				PrintLog("Case %d:\n",i);
 				sprintf(in,DataIn,i);
 				sprintf(out,DataOut,i);
-				sprintf(cc,"cp %s "HOME_PATH"tmp/%s",in,FileIn);
+				sprintf(cc,"cp %s "HOME_PATH"tmp/%s\n",in,FileIn);
+				PrintLog(cc);
 				system(cc);
 				testc[i]->Run();
 				if (!testc[i]->GetStatus())
@@ -234,7 +235,7 @@ int Task::Judge()
 						//	system(cc);
 						sprintf(cc,HOME_PATH"fdiff Normal %s "HOME_PATH"tmp/%s  >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
 						int diffres;
-						if (diffres=system(cc))
+						if ((diffres=system(cc)))
 						{
 								PrintLog("fdiff_return:%d\n",diffres);
 								//Print("Wrong Answer\n");
@@ -312,7 +313,7 @@ const Task* TestCase::GetTask()
 int TestCase::Run()
 {
 		char cc[STRLEN];
-		char path_old[440],path_new[440];
+		char path_old[STRLEN],path_new[STRLEN];
 		int pid;
 		pid=fork();
 		if (!pid)
@@ -331,7 +332,7 @@ int TestCase::Run()
 				setrlimit(RLIMIT_AS,&rm_as_new);
 
 				sprintf(cc,"./%s </dev/null >/dev/null",task->GetExecuteName());
-				getcwd(path_old,440);
+				getcwd(path_old,STRLEN);
 				//strcpy(path_new,path_old);
 				//strcat(path_new,"/tmp");
 				strcpy(path_new,HOME_PATH"tmp");
@@ -499,25 +500,20 @@ int main(int argc,const char* args[])
 		chdir(current_path);
 		int topt=0;
 		while (T[topt++].Init(cfg_file));
+		topt--;
 		char cc[30];
 		if (topt>1)
 				fgets(cc,30,stdin);
 		if (!strcmp(cc,"\n"))
 		{
 				for (int i=0;i<topt;i++)
-				{
 						T[i].Judge();
-				}
 		}else 
 		{
 				cc[strlen(cc)-1]='\0';
 				for (int i=0;i<topt;i++)
-				{
 						if (!strcmp(T[i].GetExecuteName(),cc))
-						{
 								T[i].Judge();
-						}
-				}
 		}
 		Var.Print_EV();
 }
