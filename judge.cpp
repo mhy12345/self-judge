@@ -15,7 +15,7 @@
 #include<fstream>
 using namespace std;
 #define STRLEN 350
-#define TOTCASE 55
+#define TOTCASE 105
 #define RS_SYE 10
 #define RS_NOR 0
 #define RS_AC 1
@@ -39,44 +39,25 @@ bool directory_exist(const char *file_name)
 		sprintf(cc,"if [ -d \"%s\" ] ;\nthen exit 1 \n else exit 0\nfi",file_name);
 		return system(cc);
 }
-//PrintLog{{{
-//#define STDLOG
-inline void PrintLog(const char *x,int y,int z)
-{
-		FILE *Log=fopen(HOME_PATH"log.txt","a");
-		fprintf(Log,x,y,z);
-		fclose(Log);
+
 #ifdef STDLOG
-		printf(x,y,z);
-#endif
+#define PrintLog(...)\
+{\
+		FILE *Log=fopen(HOME_PATH"log.txt","a");\
+		fprintf(Log,##__VA_ARGS__);\
+		fclose(Log);\
+		printf(__VA_ARGS__);\
 }
-inline void PrintLog(const char *x,int y)
-{
-		FILE *Log=fopen(HOME_PATH"log.txt","a");
-		fprintf(Log,x,y);
-		fclose(Log);
-#ifdef STDLOG
-		printf(x,y);
-#endif
+
+#else
+
+#define PrintLog(...)\
+{\
+		FILE *Log=fopen(HOME_PATH"log.txt","a");\
+		fprintf(Log,##__VA_ARGS__);\
+		fclose(Log);\
 }
-inline void PrintLog(const char *x,const char *y)
-{
-		FILE *Log=fopen(HOME_PATH"log.txt","a");
-		fprintf(Log,x,y);
-		fclose(Log);
-#ifdef STDLOG
-		printf(x,y);
 #endif
-}
-inline void PrintLog(const char *x)
-{
-		FILE *Log=fopen(HOME_PATH"log.txt","a");
-		fprintf(Log,"%s",x);
-		fclose(Log);
-#ifdef STDLOG
-		printf(x);
-#endif
-}
 class EV_t
 {
 		map<string,string> List;
@@ -142,7 +123,6 @@ void Print(const char *cc)
 				printf("%s\n",cc);
 		printf("\033[0m");
 }
-//}}}
 
 class Task;
 class TestCase
@@ -163,6 +143,7 @@ class TestCase
 				void SetMemoryLimit(int MemoryLimit);
 				void SetStatus(int Status);
 				int GetStatus();
+				int GetTime();
 				const Task* GetTask();
 				void SetTask(const Task* task);
 };
@@ -171,11 +152,11 @@ class Task
 		private:
 				static const int max_case=TOTCASE;
 				static const int max_length=STRLEN;
-				char DataIn[max_length],DataOut[max_length];
-				int LeftRange,RightRange;
+				char DataIn[max_length],DataOut[max_length];//Format Input/Output Name of Data
+				int LeftRange,RightRange;//Range of Data
 				char SourceName[max_length];//Source File Name
-				char ExecuteName[max_length];
-				char FileIn[max_length],FileOut[max_length];//Input
+				char ExecuteName[max_length];//Regard As Task Name
+				char FileIn[max_length],FileOut[max_length];//Current Input/Output Name
 				TestCase *testc[max_case];
 				int TotalCase;
 		public:
@@ -198,8 +179,8 @@ bool Task::Compile()const
 {
 		char cc[STRLEN];
 		system("mkdir ./tmp");
-		sprintf(cc,"g++ %s -o "HOME_PATH"tmp/%s >Compile.log\n",SourceName,ExecuteName);
-		PrintLog(cc);
+		sprintf(cc,"g++ %s -o "HOME_PATH"tmp/%s >Compile.log",SourceName,ExecuteName);
+		PrintLog("%s\n",cc);
 		if (system(cc))
 		{
 				printf("%s\n",cc);
@@ -219,15 +200,27 @@ int Task::Judge()
 		sprintf(LogDir,"%s_difflog",ExecuteName);
 		system(cc);
 		printf("\033[34mTask:%s\033[0m\n",ExecuteName);
+		int TotalTime=0;
 		for (int i=LeftRange;i<=RightRange;i++)
 		{
 				PrintLog("Case %d:\n",i);
 				sprintf(in,DataIn,i);
 				sprintf(out,DataOut,i);
-				sprintf(cc,"cp %s "HOME_PATH"tmp/%s\n",in,FileIn);
-				PrintLog(cc);
+				if (!file_exist(in))
+				{
+						printf("Standard Input File Not Found!\n");
+						return 0;
+				}
+				if (!file_exist(out))
+				{
+						printf("Standart Output File Not Found!\n");
+						return 0;
+				}
+				sprintf(cc,"cp %s "HOME_PATH"tmp/%s",in,FileIn);
+				PrintLog("%s\n",cc);
 				system(cc);
 				testc[i]->Run();
+				TotalTime+=testc[i]->GetTime();
 				if (!testc[i]->GetStatus())
 				{
 						//	sprintf(cc,"diff %s "HOME_PATH"/tmp/%s -w >%s/DiffLog%d.txt",out,FileOut,LogDir,i);
@@ -250,6 +243,8 @@ int Task::Judge()
 				}
 				testc[i]->Print_Status();
 		}
+		printf("Total Times:%d\n",TotalTime);
+		PrintLog("Total Times:%d\n",TotalTime);
 		return 0;
 }
 bool Task::Init(FILE *gs)
@@ -275,6 +270,8 @@ bool Task::Init(FILE *gs)
 TestCase::TestCase(const Task* task,int TimeLimit,int MemoryLimit,int Id):
 		task(task),TimeLimit(TimeLimit),MemoryLimit(MemoryLimit),Id(Id)
 {
+		Score=0;
+		Time=Memory=Status=0;
 };
 void TestCase::Print_Status()
 {
@@ -305,6 +302,10 @@ void TestCase::SetStatus(int Status)
 int TestCase::GetStatus()
 {
 		return Status;
+}
+int TestCase::GetTime()
+{
+		return Time;
 }
 const Task* TestCase::GetTask()
 {
@@ -372,7 +373,7 @@ int TestCase::Run()
 				if (status==-1)
 				{
 						Print("System Error\n");
-						PrintLog("System Error");
+						PrintLog("System Error\n");
 						exit(0);
 				}
 				if (WIFEXITED(status))
@@ -381,13 +382,14 @@ int TestCase::Run()
 						{
 								if (Time>=TimeLimit*1000)
 										Status=RS_TLE;
+								else if (Memory>MemoryLimit*1024)
+										Status=RS_MLE;
 						}else
 						{
 								if (Time>TimeLimit*1000)
 								{
 										Status=RS_TLE;
-								}
-								else
+								}else
 								{
 										if (Time<5)
 												Status=RS_MLE;
@@ -406,7 +408,7 @@ int TestCase::Run()
 }
 
 Task T[11];
-int main(int argc,const char* args[])
+int main(int,const char* args[])
 {
 		FILE *Log=fopen("log.txt","w");
 		fclose(Log);
@@ -433,11 +435,12 @@ int main(int argc,const char* args[])
 								{
 										strcpy(cfg_path,str.c_str());
 										PrintLog("Set cfg_path = %s\n",cfg_path);
+										printf("\033[34mSet path:%s\033[0m\n",cfg_path);
 										break;
 								}else
 								{
-										printf("Cannot Find Record \"cfg_path\"");
-										PrintLog("Cannot Find Record \"cfg_path\"");
+										printf("Cannot Find Record \"cfg_path\"\n");
+										PrintLog("Cannot Find Record \"cfg_path\"\n");
 										continue;
 								}
 						}else if (strstr(str,"ls")==str)
@@ -489,7 +492,7 @@ int main(int argc,const char* args[])
 				return 0;
 		}
 		strcpy(current_path,cfg_path);
-		for (int i=strlen(current_path)-1;i>=0;i--)
+		for (int i=(int)strlen(current_path)-1;i>=0;i--)
 		{
 				if (current_path[i]=='/')
 				{
@@ -498,10 +501,12 @@ int main(int argc,const char* args[])
 				}
 		}
 		chdir(current_path);
+		PrintLog("Change directory to %s\n",current_path);
 		int topt=0;
 		while (T[topt++].Init(cfg_file));
 		topt--;
 		char cc[30];
+		strcpy(cc,"\n");
 		if (topt>1)
 				fgets(cc,30,stdin);
 		if (!strcmp(cc,"\n"))
